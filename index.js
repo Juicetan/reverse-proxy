@@ -1,4 +1,5 @@
 var http = require('http');
+var https = require('https');
 var httpProxy = require('http-proxy');
 var httpProxyRules = require('http-proxy-rules');
 var fs = require('fs');
@@ -6,8 +7,12 @@ var _ = require('lodash');
 
 var cfg = {
   listenPort: 80,
+  sslPort: 443,
   proxyRules: {},
-  defaultPath: "http://localhost:80"
+  defaultPath: "http://localhost:80",
+  key: null,
+  cert: null,
+  ca: null
 };
 
 var readCFG = function(uri){
@@ -35,7 +40,7 @@ proxy.on('error',function(err,req,res){
   res.end();
 });
 
-http.createServer(function(req,res){
+var handlerFunction = function(req,res){
   var target = proxyRules.match(req);
   if(target){
     return proxy.web(req, res, {
@@ -43,10 +48,24 @@ http.createServer(function(req,res){
     });
   }
 
-  res.writeHead(404, { 'context-type': 'application/json' })
+  res.writeHead(404, { 'context-type': 'application/json' });
   res.end(JSON.stringify({
     error: "where are you going?"
   }));
-}).listen(cfg.listenPort,function(){
+};
+
+http.createServer(handlerFunction).listen(cfg.listenPort,function(){
   console.log('> proxy listening on :',cfg.listenPort);
 });
+
+if(cfg.key && cfg.cert && cfg.ca){
+  var sslOpts = {
+    key: fs.readFileSync(cfg.key),
+    cert: fs.readFileSync(cfg.cert),
+    ca: fs.readFileSync(cfg.ca)
+  };
+
+  https.createServer(sslOpts,handlerFunction).listen(cfg.sslPort,function(){
+    console.log('> ssl proxy listening on :',cfg.sslPort);
+  });
+}
