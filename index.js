@@ -16,7 +16,7 @@ var cfg = {
   key: null,
   cert: null,
   ca: null,
-  PUBLIC: '/public'
+  CERTCHECK: '/public/.well-known/acme-challenge'
 };
 
 var readCFG = function(uri){
@@ -35,7 +35,7 @@ var readCFG = function(uri){
 
 readCFG(__dirname+"/res/cfg.json");
 
-var fileServer = new static.Server('.'+cfg.PUBLIC, {
+var fileServer = new static.Server('.'+cfg.CERTCHECK, {
   serverInfo: packageConfig.version
 });
 
@@ -53,7 +53,7 @@ proxy.on('error',function(err,req,res){
 var handlerFunction = function(req,res){
   var target = proxyRules.match(req);
   if(target){
-    if(target === cfg.PUBLIC){
+    if(target === cfg.CERTCHECK){
       req.addListener('end', function(){
         fileServer.serve(req, res);
       }).resume();
