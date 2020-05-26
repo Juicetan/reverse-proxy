@@ -1,9 +1,12 @@
 var http = require('http');
 var https = require('https');
+var static = require('node-static');
 var httpProxy = require('http-proxy');
 var httpProxyRules = require('http-proxy-rules');
 var fs = require('fs');
 var _ = require('lodash');
+
+var packageConfig = JSON.parse(fs.readFileSync('./package.json'));
 
 var cfg = {
   listenPort: 80,
@@ -12,7 +15,8 @@ var cfg = {
   defaultPath: "http://localhost:80",
   key: null,
   cert: null,
-  ca: null
+  ca: null,
+  CERTCHECK: '/public/.well-known/acme-challenge'
 };
 
 var readCFG = function(uri){
@@ -31,21 +35,34 @@ var readCFG = function(uri){
 
 readCFG(__dirname+"/res/cfg.json");
 
+var fileServer = new static.Server('.'+cfg.CERTCHECK, {
+  serverInfo: packageConfig.version
+});
+
 var proxyRules = new httpProxyRules({
   rules: cfg.proxyRules
 });
 
+
 var proxy = httpProxy.createProxyServer();
 proxy.on('error',function(err,req,res){
+  console.log('> proxy error', err);
   res.end();
 });
 
 var handlerFunction = function(req,res){
   var target = proxyRules.match(req);
   if(target){
-    return proxy.web(req, res, {
-      target: target
-    });
+    if(target === cfg.CERTCHECK){
+      req.addListener('end', function(){
+        fileServer.serve(req, res);
+      }).resume();
+      return;
+    } else{
+      return proxy.web(req, res, {
+        target: target
+      });
+    }
   }
 
   res.writeHead(404, { 'context-type': 'application/json' });
